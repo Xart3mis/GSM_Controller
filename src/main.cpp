@@ -3,7 +3,7 @@
 #include <NeoSWSerial.h>
 
 // StaticJsonDocument<JSON_OBJECT_SIZE(50)> doc;
-
+// seif omo helwa
 #define API_KEY "pk.1eb53d351789d96db350712fa4983c80"
 #define LED_PIN 5
 
