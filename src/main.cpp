@@ -2,8 +2,12 @@
 // #include <ArduinoJson.h>
 #include <NeoSWSerial.h>
 
+// StaticJsonDocument<JSON_OBJECT_SIZE(50)> doc;
+
 #define API_KEY "pk.1eb53d351789d96db350712fa4983c80"
 #define LED_PIN 5
+
+#define ARR_SIZE 5
 
 #define ASCII_0_VALU 48
 #define ASCII_9_VALU 57
@@ -12,10 +16,10 @@
 
 NeoSWSerial mySerial(10, 11);
 
+String notif;
 String MSG = "";
 String PHONE = "";
-String notif;
-String strings;
+String request_data = "";
 
 bool led_state = true;
 bool state = false;
@@ -27,10 +31,17 @@ void updateSerial();
 void parse_SMS();
 void get_loc();
 
+void (*resetFunc)(void) = 0;
+
 void setup()
 {
   Serial.begin(38400);
   mySerial.begin(38400);
+
+  MSG.reserve(16);
+  PHONE.reserve(16);
+  notif.reserve(256);
+  // request_data.reserve(64);
 
   Serial.println(F("Initializing..."));
   delay(1000);
@@ -65,11 +76,14 @@ void setup()
 
   flash_led(50, 5);
   digitalWrite(8, LOW);
-  get_loc();
+  // get_loc();
 }
 
 void loop()
 {
+  if (millis() >= 3600000UL)
+    resetFunc();
+
   updateSerial();
   if (notif.startsWith("+cmt"))
   {
@@ -203,10 +217,10 @@ void get_loc()
   mySerial.flush();
 
   mySerial.println(F("AT+CNETSCAN"));
-  delay(30000);
+  delay(45000);
 
   int buf_idx = 0;
-  char buf[320] = {'\0'};
+  char buf[70 * ARR_SIZE] = {'\0'};
 
   while (mySerial.available())
   {
@@ -221,14 +235,17 @@ void get_loc()
   notif = String(buf);
   notif.trim();
   Serial.println(notif);
-  String shit[35] = {"\0"};
+
+  String shit[ARR_SIZE] = {"\0"};
+
+  notif += '\n';
 
   int t = 0;
   int r = 0;
 
-  for (uint16_t i = 0; i < notif.length(); i++)
+  for (uint16_t i = 0; i <= notif.length(); i++)
   {
-    if (notif.charAt(i) == ',')
+    if (notif[i] == '\n')
     {
       shit[t] = notif.substring(r, i);
       r = (i + 1);
@@ -236,67 +253,76 @@ void get_loc()
     }
   }
 
+  for (int i = 0; i < ARR_SIZE; i++)
+    shit[i] = shit[i].substring(shit[i].indexOf(",") + 1);
+
+  for (int i = 0; i < ARR_SIZE; i++)
+    Serial.println(shit[i]);
+
   notif = "";
 
   // operator:"mobinil",mcc:602,mnc:01,rxlev:47,cellid:6c17,arfcn:60,lac:8184,bsic:12
 
-  String MCC, MNC, CID, LAC;
-  int MCCs[16] = {0};
-  int MNCs[16] = {0};
-  int CIDs[16] = {0};
-  int LACs[16] = {0};
+  int MCCs[ARR_SIZE] = {0};
+  int MNCs[ARR_SIZE] = {0};
+  int CIDs[ARR_SIZE] = {0};
+  int LACs[ARR_SIZE] = {0};
 
-  for (int i = 0; i < 35; i++)
+  // mcc:602,mnc:03,rxlev:27,cellid:1f80,arfcn:514,lac:535e,bsic:04
+  for (int i = 0; i < ARR_SIZE; i++)
   {
-    if (shit[i].length() > 5 && shit[i].indexOf(":") > 0)
+    Serial.println(shit[i]);
+    if (shit[i].length() > 32 && shit[i].indexOf("bsic") > 0)
     {
-      shit[i].trim();
-      Serial.println(shit[i]);
-
-      if (shit[i].indexOf("mcc") >= 0)
-      {
-        MCC = shit[i].substring(4);
-        MCCs[i] = MCC.toInt();
-        Serial.print(MCC);
-        Serial.print(" ");
-      }
-      if (shit[i].indexOf("mnc") >= 0)
-      {
-        MNC = shit[i].substring(4);
-        MNCs[i] = MNC.toInt();
-        Serial.print(MNC);
-        Serial.print(" ");
-      }
-      if (shit[i].indexOf("cellid") >= 0) // seif pls pls
-      {
-        CID = shit[i].substring(3);
-        char temp[8] = {'\0'};
-        for (uint16_t i = 0; i < CID.length(); i++)
-          temp[i] = CID[i];
-
-        CIDs[i] = HexStringToUInt(temp);
-        Serial.print(CID);
-        Serial.print(" ");
-      }
-      if (shit[i].indexOf("lac") >= 0)
-      {
-        LAC = shit[i].substring(4);
-        LACs[i] = HexStringToUInt(LAC.c_str());
-        Serial.print(LAC);
-      }
-      Serial.println("\n");
+      MCCs[i] = shit[i].substring(shit[i].indexOf(",mcc:") + 5, shit[i].indexOf(",mnc:")).toInt();
+      MNCs[i] = shit[i].substring(shit[i].indexOf(",mnc:") + 5, shit[i].indexOf(",rxlev:")).toInt();
+      CIDs[i] = HexStringToUInt(shit[i].substring(shit[i].indexOf(",cellid:") + 8, shit[i].indexOf(",arfcn:")).c_str());
+      LACs[i] = HexStringToUInt(shit[i].substring(shit[i].indexOf(",lac:") + 5, shit[i].indexOf(",bsic:")).c_str());
     }
   }
 
-  int idx = 0;
-
-  for (int i = 0; i < 16; i++)
+  for (int i = 0; i < ARR_SIZE; i++)
   {
-    if (MCCs[i] > 0 && MNCs[i] > 0 && CIDs[i] > 0 && LACs[i] > 0)
-      idx++;
+    Serial.println(MCCs[i]);
+    Serial.println(MNCs[i]);
+    Serial.println(CIDs[i]);
+    Serial.println(LACs[i]);
   }
 
-  Serial.println(idx);
+  /*{"token": "pk.1eb53d351789d96db350712fa4983c80", "radio": "gsm", "mcc": 602, "mnc": 3, "cells": [
+    {"radio": "gsm", "mcc": 602, "mnc": 3, "lac": 21342, "cid": 8063},
+    {"radio": "gsm", "mcc": 602, "mnc": 3, "lac": 21342, "cid": 8064},
+    {"radio": "gsm", "mcc": 602, "mnc": 3, "lac": 21342, "cid": 8053}], "address": 1}*/
+
+  // request_data = "{\"token\":\"" + String(API_KEY) + "\", \"radio\":\"gsm\", \"mcc\":" + String(MCCs[1]) + ", \"mnc\":" + String(MNCs[1]) + ", \"cells\":[";
+  // request_data = "fdeghwhqwdhwahlahdwhdahhwhdaighddiadawksdgdsadbsakhdgidldsakl;dg sdligdslkdsbudliysad,ksbdhisgdlsbdsldg";
+  // Serial.println(request_data);
+  // JsonObject root = doc.to<JsonObject>();
+  // root["token"] = String(API_KEY);
+  // root["radio"] = String("gsm");
+  // root["mcc"] = MCCs[1];
+  // root["mnc"] = MNCs[1];
+
+  // JsonArray array = root.createNestedArray("cells");
+  // root["address"] = 1;
+
+  for (int i = 0; i < ARR_SIZE; i++)
+  {
+    if (MCCs[i] > 0 && MNCs[i] > 0 && CIDs[i] > 0 && LACs[i] > 0)
+    {
+      // JsonObject obj = array.createNestedObject();
+      // obj["radio"] = String("gsm");
+      // obj["mcc"] = MCCs[i];
+      // obj["mnc"] = MNCs[i];
+      // obj["lac"] = LACs[i];
+      // obj["cid"] = CIDs[i];
+      // request_data = request_data + "{\"radio\": \"gsm\", \"mcc\": " + String(MCCs[i]) + ", \"mnc\": " + String(MNCs[i]) + ", \"lac\": " + String(LACs[i]) + ", \"cid\": " + String(CIDs[i]) + "}";
+    }
+  }
+  // request_data = request_data + "], \"address\": 1}";
+
+  // serializeJsonPretty(root, Serial);
+  // Serial.println(request_data);
 }
 
 void parse_SMS()
