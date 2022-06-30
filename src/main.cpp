@@ -14,7 +14,7 @@
 #define ASCII_A_VALU 65
 #define ASCII_F_VALU 70
 
-NeoSWSerial mySerial(10, 11);
+NeoSWSerial SIM800L_SerialAT(10, 11);
 
 String notif;
 String MSG = "";
@@ -36,7 +36,7 @@ void (*resetFunc)(void) = 0;
 void setup()
 {
   Serial.begin(38400);
-  mySerial.begin(38400);
+  SIM800L_SerialAT.begin(38400);
 
   MSG.reserve(16);
   PHONE.reserve(16);
@@ -49,7 +49,7 @@ void setup()
   notif = "";
   do
   {
-    mySerial.println(F("AT")); // Once the handshake test is successful, it will back to OK
+    SIM800L_SerialAT.println(F("AT")); // Once the handshake test is successful, it will back to OK
     updateSerial();
     flash_led(85, 1);
   } while (notif.indexOf("ok") < 0);
@@ -58,7 +58,7 @@ void setup()
 
   do
   {
-    mySerial.println(F("AT+CMGF=1")); // Configuring TEXT mode
+    SIM800L_SerialAT.println(F("AT+CMGF=1")); // Configuring TEXT mode
     updateSerial();
     flash_led(85, 1);
   } while (notif.indexOf("ok") < 0);
@@ -66,7 +66,7 @@ void setup()
   notif = "";
   do
   {
-    mySerial.println(F("AT+CNMI=1,2,0,0,0")); // Decides how newly arrived SMS messages should be handled
+    SIM800L_SerialAT.println(F("AT+CNMI=1,2,0,0,0")); // Decides how newly arrived SMS messages should be handled
     updateSerial();
     flash_led(85, 1);
   } while (notif.indexOf("ok") < 0);
@@ -132,20 +132,20 @@ void loop()
 
 void updateSerial()
 {
-  delay(mySerial.getTimeout());
+  delay(SIM800L_SerialAT.getTimeout());
   while (Serial.available())
   {
-    mySerial.write(Serial.read());
+    SIM800L_SerialAT.write(Serial.read());
   }
-  while (mySerial.available())
+  while (SIM800L_SerialAT.available())
   {
-    notif = mySerial.readStringUntil('\n');
+    notif = SIM800L_SerialAT.readStringUntil('\n');
     notif.trim();
     notif.toLowerCase();
     Serial.println(notif);
   }
 
-  mySerial.flush();
+  SIM800L_SerialAT.flush();
 }
 
 void flash_led(int de, int x)
@@ -162,13 +162,13 @@ void flash_led(int de, int x)
 
 void send_SMS(String msg)
 {
-  mySerial.println(F("AT")); // Once the handshake test is successful, it will back to OK
+  SIM800L_SerialAT.println(F("AT")); // Once the handshake test is successful, it will back to OK
   updateSerial();
-  mySerial.println("AT+CMGS=\"" + PHONE + "\"");
+  SIM800L_SerialAT.println("AT+CMGS=\"" + PHONE + "\"");
   updateSerial();
-  mySerial.print(msg); // text content
+  SIM800L_SerialAT.print(msg); // text content
   updateSerial();
-  mySerial.write(26);
+  SIM800L_SerialAT.write(26);
 }
 
 unsigned int HexStringToUInt(char const *hexstring)
@@ -210,21 +210,21 @@ void get_loc()
   notif = "";
   do
   {
-    mySerial.println(F("AT+CNETSCAN=1"));
+    SIM800L_SerialAT.println(F("AT+CNETSCAN=1"));
     updateSerial();
   } while (notif.indexOf("ok") < 0);
 
-  mySerial.flush();
+  SIM800L_SerialAT.flush();
 
-  mySerial.println(F("AT+CNETSCAN"));
+  SIM800L_SerialAT.println(F("AT+CNETSCAN"));
   delay(45000);
 
   int buf_idx = 0;
   char buf[70 * ARR_SIZE] = {'\0'};
 
-  while (mySerial.available())
+  while (SIM800L_SerialAT.available())
   {
-    char x = tolower(mySerial.read());
+    char x = tolower(SIM800L_SerialAT.read());
     buf[buf_idx++] = x;
     Serial.write(x);
   }
